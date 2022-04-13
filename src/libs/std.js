@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.converter = new StrFunction()
         }
         __call__(args) {
-            console.log(args)
             console.log( this.converter.__call__(args) )
         }
     }

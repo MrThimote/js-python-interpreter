@@ -857,7 +857,8 @@ PYTHON = (function () {
   print(function(1))
   x = 3
   print(function(2))
-  print(len(arr))`)
+  print(len(arr))
+  print(len(arr[0]))`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

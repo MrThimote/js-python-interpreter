@@ -94,6 +94,19 @@ const PYTHON = (function () {
         }
     }
 
+    class ArrayNode extends PythonNode{
+        constructor (expressions) {
+            super();
+            this.expressions = expressions
+        }
+
+        evaluate (context) {
+            return new ArrayNode(
+                this.expressions.map( (expr) => expr.evaluate(context) )
+            )
+        }
+    }
+
     /**
      * PythonOperation
      * @param operator operator type on which to apply the operation
@@ -178,6 +191,9 @@ const PYTHON = (function () {
         "STRING": "STRING",
         "SET": "SET",
 
+        "LEFT_SQUARED_BRACKET": "LEFT_SQUARED_BRACKET",
+        "RIGHT_SQUARED_BRACKET": "RIGHT_SQUARED_BRACKET",
+
         // operators
         "PLUS": "PLUS",
         "MINUS": "MINUS",
@@ -215,9 +231,10 @@ const PYTHON = (function () {
         "EOF": "EOF",
         "TAB": "TAB",
         "TWO_DOTS": "TWO_DOTS",
+        "COMMA": "COMMA",
 
         "IF": "IF",
-        "WHILE": "WHILE"
+        "WHILE": "WHILE",
     }
 
     /**
@@ -243,6 +260,7 @@ const PYTHON = (function () {
         ["==", TOKENS.EQUALS],
 
         [":", TOKENS.TWO_DOTS],
+        [",", TOKENS.COMMA],
 
         ["+", TOKENS.PLUS],
         ["-", TOKENS.MINUS],
@@ -258,6 +276,9 @@ const PYTHON = (function () {
         [">", TOKENS.GT],
         [">=", TOKENS.GTE],
         [">>", TOKENS.BIT_RIGHT_SHIFT],
+
+        ["[", TOKENS.LEFT_SQUARED_BRACKET],
+        ["]", TOKENS.RIGHT_SQUARED_BRACKET],
     ]
     
     class PythonLexer {
@@ -602,6 +623,22 @@ const PYTHON = (function () {
                 this.move(1)
                 return new PythonOperation(TOKENS.SET, value);
             }
+
+            if (this.token.name == TOKENS.LEFT_SQUARED_BRACKET) {
+                this.move(1)
+                let expressions = [];
+
+                while (this.advanced && this.token.name != TOKENS.RIGHT_SQUARED_BRACKET) {
+                    expressions.push(this.parse_expression(0))
+
+                    if (this.token.name == TOKENS.COMMA)
+                        this.move(1);
+                }
+
+                this.move(1);
+                
+                return new ArrayNode(expressions)
+            }
         }
     }
     
@@ -615,7 +652,9 @@ const PYTHON = (function () {
 \t    y = y + 2
 
   str = "this is a string"
-  str = str + ". and you can add another one"`)
+  str = str + ". and you can add another one"
+  
+  arr = [ "an array", 1, "that also has strings, arrays", [], x, "and variables" ]`)
     let tokens = lexer.build()
 
     let parser = new PythonParser(tokens)

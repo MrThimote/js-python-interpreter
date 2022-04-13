@@ -215,6 +215,7 @@ PYTHON = (function () {
                 return JSON.stringify(expr)
             } ).join(", ") + "]"
         }
+        __len__ () { return this.expressions.length }
     }
 
     /**
@@ -852,10 +853,11 @@ PYTHON = (function () {
   arr[3][0] = str(e)
   print(arr)
   
-  function = lambda : x * x
-  print(function())
+  function = lambda y : x * x + y
+  print(function(1))
   x = 3
-  print(function())`)
+  print(function(2))
+  print(len(arr))`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

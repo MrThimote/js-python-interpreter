@@ -597,6 +597,11 @@ const PYTHON = (function () {
                 this.move(1)
                 return new PythonOperation(TOKENS.SET, value);
             }
+            if (this.token.name == TOKENS.STRING) {
+                let value = this.token.value
+                this.move(1)
+                return new PythonOperation(TOKENS.SET, value);
+            }
         }
     }
     
@@ -607,7 +612,10 @@ const PYTHON = (function () {
 \t    y = y + 1
   y = y + 1
   if y == 6570 or y == 6571:
-\t    y = y + 2`)
+\t    y = y + 2
+
+  str = "this is a string"
+  str = str + ". and you can add another one"`)
     let tokens = lexer.build()
 
     let parser = new PythonParser(tokens)

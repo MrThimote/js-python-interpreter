@@ -1,5 +1,5 @@
 
-const PYTHON = (function () {
+PYTHON = (function () {
 
     /**
      * Token class
@@ -134,6 +134,28 @@ const PYTHON = (function () {
         }
     }
 
+    class AbstractFunctionNode extends PythonNode {
+        __call__ (args) {}
+        evaluate (context) { return this; }
+    }
+
+    class CallFunctionNode extends PythonNode {
+        constructor (expr, arg_expressions) {
+            super();
+            this.expr = expr;
+            this.arg_expressions = arg_expressions;
+        }
+
+        evaluate( context ) {
+            let func = this.expr instanceof PythonNode ? this.expr.evaluate( context ) : this.expr
+
+            let args = this.arg_expressions.map((expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr)
+
+            if (func.__call__) return func.__call__(args)
+            return func(args)
+        }
+    }
+
     class ArrayNode extends PythonNode{
         constructor (expressions) {
             super();
@@ -142,7 +164,7 @@ const PYTHON = (function () {
 
         evaluate (context) {
             return new ArrayNode(
-                this.expressions.map( (expr) => expr.evaluate(context) )
+                this.expressions.map( (expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr )
             )
         }
 
@@ -152,6 +174,19 @@ const PYTHON = (function () {
         __setitem__ (idx, value) {
             this.expressions[idx] = value;
         } 
+
+        __str__ () {
+            return "[" + this.expressions.map ( (expr) => {
+                if (typeof expr == "string") return '"' + expr + '"'
+                if (expr.__str__) {
+                    console.log(expr)
+                    console.log(expr.__str__())
+                    return expr.__str__();
+                }
+
+                return JSON.stringify(expr)
+            } ).join(", ") + "]"
+        }
     }
 
     /**
@@ -279,6 +314,8 @@ const PYTHON = (function () {
         "TAB": "TAB",
         "TWO_DOTS": "TWO_DOTS",
         "COMMA": "COMMA",
+        "LEFT_PARENTHESIES": "LEFT_PARENTHESIES",
+        "RIGHT_PARENTHESIES": "RIGHT_PARENTHESIES",
 
         "IF": "IF",
         "WHILE": "WHILE",
@@ -326,6 +363,9 @@ const PYTHON = (function () {
 
         ["[", TOKENS.LEFT_SQUARED_BRACKET],
         ["]", TOKENS.RIGHT_SQUARED_BRACKET],
+
+        ["(", TOKENS.LEFT_PARENTHESIES],
+        [")", TOKENS.RIGHT_PARENTHESIES],
     ]
     
     class PythonLexer {
@@ -708,6 +748,20 @@ const PYTHON = (function () {
                     this.move(1)
 
                     left = new GetAtNode(left, idx_expr)
+                } else if (this.token.name == TOKENS.LEFT_PARENTHESIES) {
+                    this.move(1);
+                    let expressions = [];
+
+                    while (this.advanced && this.token.name != TOKENS.RIGHT_PARENTHESIES) {
+                        expressions.push(this.parse_expression(0))
+                        
+                        if (this.token.name == TOKENS.COMMA)
+                            this.move(1);
+                    }
+
+                    this.move(1);
+
+                    left = new CallFunctionNode(left, expressions);
                 } else {
                     break;
                 }
@@ -716,9 +770,22 @@ const PYTHON = (function () {
             return left;
         }
     }
+
+    const GLOBAL_CONTEXT = {}
+
+    function register_global (dict) {
+        let keys = Object.keys ( dict );
+        for (let key of keys) {
+            let obj = dict[key]
+
+            GLOBAL_CONTEXT[key] = obj;
+        }
+    }
     
-    let lexer = new PythonLexer(
-` x = 1+1*2**3
+    function evaluate ( string ) {
+        let lexer = new PythonLexer(
+            `
+  x = 1+1*2**3
   y = 1+1*x**4
   while y <= 6568 and y >= 6560:
 \t    y = y + 1
@@ -726,25 +793,34 @@ const PYTHON = (function () {
   if y == 6570 or y == 6571:
 \t    y = y + 2
 
-  str = "this is a string"
-  str = str + ". and you can add another one"
+  string = "this is a string"
+  string = string + ". and you can add another one"
   
   arr = [ "an array", 1, "that also has strings, arrays and insane things", [ "subarray" ], x, "and variables" ]
   
   e = arr[3][0]
-  arr[3][0] = e + 1`)
-    let tokens = lexer.build()
-
-    let parser = new PythonParser(tokens)
-    let nodes = parser.build();
-    
-    let context = {}
-    for (let node of nodes) {
-        node.evaluate(context)
+  arr[3][0] = str(e)
+  print(arr)`)
+                let tokens = lexer.build()
+            
+                let parser = new PythonParser(tokens)
+                let nodes = parser.build();
+                console.log(GLOBAL_CONTEXT)
+                for (let node of nodes) {
+                    node.evaluate(GLOBAL_CONTEXT)
+                }
+                console.log(GLOBAL_CONTEXT)
     }
-    console.log(context)
+    
 
-    return {}
+    return {
+        AbstractFunctionNode,
+        AbstractGetNode,
+        PythonNode,
+
+        register_global,
+        evaluate
+    }
 })()
 
 

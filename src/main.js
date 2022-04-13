@@ -24,24 +24,30 @@ const PYTHON = (function () {
      * @param right the expression that will get evaluated and will be changed
      */
     class SetNode extends PythonNode {
-        constructor (name, right) {
+        constructor (expr, right) {
             super();
 
-            this.name = name;
+            this.expr = expr;
             this.right = right;
         }
 
         evaluate (context) {
-            context[this.name] = this.right instanceof PythonNode ? this.right.evaluate(context) : this.right
-            return context[this.name]
+            this.expr.set(context, this.right instanceof PythonNode ? this.right.evaluate(context) : this.right)
         }
+    }
+
+    /**
+     * Represents a node that will get a value from the context
+     */
+    class AbstractGetNode extends PythonNode {
+
     }
 
     /**
      * GetNode
      * @param name the name of the variable to get
      */
-    class GetNode extends PythonNode {
+    class GetNode extends AbstractGetNode {
         constructor (name) {
             super();
             this.name = name;
@@ -49,6 +55,40 @@ const PYTHON = (function () {
 
         evaluate (context) {
             return context[this.name];
+        }
+
+        set (context, value) {
+            context[this.name] = value;
+        }
+    }
+
+    /**
+     * GetAtNode <left>[<idx_expr>]
+     * 
+     * @param left left side of the equation
+     * @param idx_expr the expression representing the id or the object used as key.
+     */
+    class GetAtNode extends AbstractGetNode {
+        constructor (left, idx_expr) {
+            super();
+            this.left = left;
+            this.idx_expr = idx_expr;
+        }
+
+        evaluate (context) {
+            let left =    this.left instanceof PythonNode ?     this.left.evaluate(context) : this.left
+            let idx = this.idx_expr instanceof PythonNode ? this.idx_expr.evaluate(context) : this.idx_expr
+            
+            if (left.__getitem__) return left.__getitem__(idx)
+            return left[idx]
+        }
+
+        set (context, value) {
+            let left =    this.left instanceof PythonNode ?     this.left.evaluate(context) : this.left
+            let idx = this.idx_expr instanceof PythonNode ? this.idx_expr.evaluate(context) : this.idx_expr
+
+            if (left.__setitem__) return left.__setitem__(idx, value)
+            left[idx] = value;
         }
     }
     
@@ -105,6 +145,13 @@ const PYTHON = (function () {
                 this.expressions.map( (expr) => expr.evaluate(context) )
             )
         }
+
+        __getitem__ (idx) {
+            return this.expressions[idx];
+        }
+        __setitem__ (idx, value) {
+            this.expressions[idx] = value;
+        } 
     }
 
     /**
@@ -548,11 +595,6 @@ const PYTHON = (function () {
          * @param {Number} cur_tab_count current expected_tab_count
          */
         parse(cur_tab_count) {
-            if (this.token.name == TOKENS.NAME && this.next(1).name == TOKENS.SET) {
-                let name = this.token.value
-                this.move(2);
-                return new SetNode( name, this.parse_expression(0) )
-            }
             if (this.token.name == TOKENS.IF) {
                 this.move(1);
                 let expr = this.parse()
@@ -564,6 +606,18 @@ const PYTHON = (function () {
                 return new WhileNode( expr, this.parse_block('while', cur_tab_count) )
             }
 
+            if (this.token.name == TOKENS.NAME) {
+                let idx = this.idx;
+                let expr = this.extended_factor()
+
+                if (this.token.name == TOKENS.SET) {
+                    this.move(1)
+                    return new SetNode( expr, this.parse_expression(0) )
+                } else {
+                    this.idx = idx - 1;
+                    this.move(1);
+                }
+            }
             return this.parse_expression(0);
         }
 
@@ -573,7 +627,7 @@ const PYTHON = (function () {
          * @returns a syntax tree
          */
         parse_expression (state=0) {
-            if (state == EXPRESSION_STATES.length) return this.factor();
+            if (state == EXPRESSION_STATES.length) return this.extended_factor();
             // Unary state
             if (state == 2) {
                 let operator = undefined;
@@ -636,9 +690,30 @@ const PYTHON = (function () {
                 }
 
                 this.move(1);
-                
+
                 return new ArrayNode(expressions)
             }
+        }
+
+        extended_factor () {
+            let left = this.factor();
+
+            while (this.advanced){ 
+                if (this.token.name == TOKENS.LEFT_SQUARED_BRACKET) {
+                    this.move(1);
+                    let idx_expr = this.parse_expression(0);
+                    
+                    if (this.token.name != TOKENS.RIGHT_SQUARED_BRACKET) throw 'Expected a \']\' at the end of a <at> expression'
+
+                    this.move(1)
+
+                    left = new GetAtNode(left, idx_expr)
+                } else {
+                    break;
+                }
+            }
+
+            return left;
         }
     }
     
@@ -654,7 +729,10 @@ const PYTHON = (function () {
   str = "this is a string"
   str = str + ". and you can add another one"
   
-  arr = [ "an array", 1, "that also has strings, arrays", [], x, "and variables" ]`)
+  arr = [ "an array", 1, "that also has strings, arrays and insane things", [ "subarray" ], x, "and variables" ]
+  
+  e = arr[3][0]
+  arr[3][0] = e + 1`)
     let tokens = lexer.build()
 
     let parser = new PythonParser(tokens)

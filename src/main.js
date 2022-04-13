@@ -54,6 +54,10 @@ PYTHON = (function () {
         }
 
         evaluate (context) {
+            while (!(context[this.name]) && context.__up__) {
+                context = context.__up__
+            }
+
             return context[this.name];
         }
 
@@ -139,7 +143,7 @@ PYTHON = (function () {
         evaluate (context) { return this; }
     }
 
-    class CallFunctionNode extends PythonNode {
+    class CallFunctionNode extends AbstractGetNode {
         constructor (expr, arg_expressions) {
             super();
             this.expr = expr;
@@ -153,6 +157,30 @@ PYTHON = (function () {
 
             if (func.__call__) return func.__call__(args)
             return func(args)
+        }
+    }
+
+    class LambdaFunction extends AbstractFunctionNode {
+        constructor (names, expr) {
+            super()
+            this.names = names;
+            this.expr = expr;
+            this.upper_ctx = {}
+        }
+
+        evaluate (context) {
+            this.upper_ctx = context
+            return this;
+        }
+
+        __call__(args) {
+            let ctx = { '__up__': this.upper_ctx }
+
+            for (let idx = 0; idx < Math.max(args.length, this.names.length); idx ++ ) {
+                ctx[this.names[idx]] = args[idx]
+            }
+
+            return this.expr.evaluate(ctx)
         }
     }
 
@@ -319,6 +347,7 @@ PYTHON = (function () {
 
         "IF": "IF",
         "WHILE": "WHILE",
+        "LAMBDA": "LAMBDA",
     }
 
     /**
@@ -502,6 +531,7 @@ PYTHON = (function () {
             if (name == "while") return TOKENS.WHILE
             if (name == "or") return TOKENS.OR
             if (name == "and") return TOKENS.AND
+            if (name == "lambda") return TOKENS.LAMBDA
 
             return TOKENS.NAME
         }
@@ -733,6 +763,26 @@ PYTHON = (function () {
 
                 return new ArrayNode(expressions)
             }
+
+            if (this.token.name == TOKENS.LAMBDA) {
+                this.move(1)
+
+                let variable_names = [];
+
+                while (this.advanced && this.token.name == TOKENS.NAME) {
+                    if (this.token.name != TOKENS.NAME) throw 'error on lambda creation expected name'
+                    variable_names.push(this.token.value)
+                    this.move(1);
+
+                    if (this.token.name != TOKENS.COMMA) break;
+                    else this.move(1);
+                }
+
+                if (this.token.name != TOKENS.TWO_DOTS) throw 'Expected two dots for lambda expression'
+                this.move(1);
+
+                return new LambdaFunction(variable_names, this.parse_expression(0));
+            }
         }
 
         extended_factor () {
@@ -800,16 +850,21 @@ PYTHON = (function () {
   
   e = arr[3][0]
   arr[3][0] = str(e)
-  print(arr)`)
-                let tokens = lexer.build()
-            
-                let parser = new PythonParser(tokens)
-                let nodes = parser.build();
-                console.log(GLOBAL_CONTEXT)
-                for (let node of nodes) {
-                    node.evaluate(GLOBAL_CONTEXT)
-                }
-                console.log(GLOBAL_CONTEXT)
+  print(arr)
+  
+  function = lambda : x * x
+  print(function())
+  x = 3
+  print(function())`)
+        let tokens = lexer.build()
+    
+        let parser = new PythonParser(tokens)
+        let nodes = parser.build();
+        console.log(GLOBAL_CONTEXT)
+        for (let node of nodes) {
+            node.evaluate(GLOBAL_CONTEXT)
+        }
+        console.log(GLOBAL_CONTEXT)
     }
     
 

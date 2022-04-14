@@ -28,10 +28,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    class RangeFunction extends PYTHON.AbstractFunctionNode {
+        *__call__ (args) {
+            let start = args[0]
+            let stop = args[1]
+            let step = args.length > 2 ? args[2] : 1
+            let can_continue = (x) => {
+                return step < 0 ? x > stop : x < stop
+            };
+
+            if (step == 0) throw 'ERROR'
+
+            let x = start;
+            while (can_continue(x)) {
+                yield x;
+                x += step;
+            }
+        }
+    }
+
     PYTHON.register_global ( {
         'str': new StrFunction(),
         'len': new LenFunction(),
-        'print': new PrintFunction()
+        'print': new PrintFunction(),
+        'range': new RangeFunction(),
     } )
 
     PYTHON.evaluate()

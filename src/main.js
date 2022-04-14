@@ -138,6 +138,28 @@ PYTHON = (function () {
         }
     }
 
+    class ForNode extends PythonNode {
+        constructor (name, expression, nodes) {
+            super();
+            this.name = name;
+            this.expression = expression;
+            this.nodes = nodes;
+        }
+
+        evaluate (context) {
+            let expr = this.expression instanceof PythonNode ? this.expression.evaluate(context) : this.expression
+            if (expr.__gen__) expr = expr.___gen__()
+
+            for (let value of expr) {
+                context[this.name] = value;
+
+                for (let node of this.nodes) {
+                    node.evaluate(context);
+                }
+            }
+        }
+    }
+
     class AbstractFunctionNode extends PythonNode {
         __call__ (args) {}
         evaluate (context) { return this; }
@@ -405,6 +427,7 @@ PYTHON = (function () {
         "LAMBDA": "LAMBDA",
         "DEF": "DEF",
         "RETURN": "RETURN",
+        "FOR": "FOR",
     }
 
     /**
@@ -591,6 +614,8 @@ PYTHON = (function () {
             if (name == "lambda") return TOKENS.LAMBDA
             if (name == "def") return TOKENS.DEF
             if (name == "return") return TOKENS.RETURN
+            if (name == "for") return TOKENS.FOR
+            if (name == "in") return TOKENS.IN
 
             return TOKENS.NAME
         }
@@ -766,6 +791,21 @@ PYTHON = (function () {
             if (this.token.name == TOKENS.RETURN) {
                 this.move(1);
                 return new ReturnNode(this.parse_expression(0))
+            }
+            if (this.token.name == TOKENS.FOR) {
+                this.move(1);
+                if (this.token.name != TOKENS.NAME) throw 'Expected name for variable name in for'
+            
+                let name = this.token.value;
+                this.move(1)
+
+                if (this.token.name != TOKENS.IN) throw 'Expected in for iterator in for expression'
+                this.move(1)
+
+                let expr = this.parse_expression(0)
+                let block = this.parse_block('for', cur_tab_count)
+
+                return new ForNode(name, expr, block)
             }
 
             if (this.token.name == TOKENS.NAME) {
@@ -955,7 +995,11 @@ PYTHON = (function () {
 \t    print("\\"" + y + "\\"")
 \t    return x + y
   print(f(1))
-  print(f(2))`)
+  print(f(2))
+  
+  a = range(1, 10, 2)
+  for i in a:
+\t    print(i)`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

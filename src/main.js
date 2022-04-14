@@ -267,6 +267,30 @@ PYTHON = (function () {
         }
     }
 
+    class BuildForArrayNode extends PythonNode {
+        constructor (expression, name, iter_expr) {
+            super();
+            this.expression = expression
+            this.name = name;
+            this.iter_expr = iter_expr;
+        }
+
+        evaluate (context) {
+            let iter_expr = this.iter_expr instanceof PythonNode ? this.iter_expr.evaluate(context) : this.iter_expr
+            if (iter_expr.__gen__) iter_expr = iter_expr.___gen__()
+
+            let array = []
+            for (let iter of iter_expr) {
+                context[this.name] = iter;
+                array.push(this.expression instanceof PythonNode ? this.expression.evaluate(context) : this.expression)
+            }
+
+            let node = new ArrayNode(array);
+            node.built = true;
+            return node;
+        }
+    }
+
     class ArrayNode extends PythonNode{
         constructor (expressions) {
             super();
@@ -939,9 +963,24 @@ PYTHON = (function () {
 
                 while (this.advanced && this.token.name != TOKENS.RIGHT_SQUARED_BRACKET) {
                     expressions.push(this.parse_expression(0))
+                    if (this.token.name == TOKENS.FOR) break;
 
                     if (this.token.name == TOKENS.COMMA)
                         this.move(1);
+                }
+
+                if (this.token.name == TOKENS.FOR) {
+                    this.move(1);
+                    if (this.token.name != TOKENS.NAME) throw 'expected name after for in array build'
+                    let name = this.token.value;
+                    this.move(1);
+                    if (this.token.name != TOKENS.IN) throw 'expected in after for array build'
+                    this.move(1)
+                    let iter_expr = this.parse_expression(0)
+                    if (this.token.name != TOKENS.RIGHT_SQUARED_BRACKET) throw 'expected right squared bracket after for expression in aray build'
+                    this.move(1)
+
+                    return new BuildForArrayNode(expressions[0], name, iter_expr);
                 }
 
                 this.move(1);
@@ -1097,7 +1136,10 @@ PYTHON = (function () {
   dict = { "a": "b" }
   print(dict["a"])
   dict["b"] = "c"
-  print(dict[dict["a"]])`)
+  print(dict[dict["a"]])
+  
+  arr = [i for i in range(1, 10)]
+  print(arr)`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

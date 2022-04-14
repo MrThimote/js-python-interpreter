@@ -166,11 +166,16 @@ PYTHON = (function () {
             this.names = names;
             this.expr = expr;
             this.upper_ctx = {}
+            this.is_copy = false;
         }
 
         evaluate (context) {
-            this.upper_ctx = context
-            return this;
+            if (this.is_copy) return this;
+
+            let copy = new LambdaFunction(this.names, this.expr)
+            copy.upper_ctx = context
+            copy.is_copy = true;
+            return copy;
         }
 
         __call__(args) {
@@ -181,6 +186,55 @@ PYTHON = (function () {
             }
 
             return this.expr.evaluate(ctx)
+        }
+    }
+
+    class DefFunction extends AbstractFunctionNode {
+        constructor (name, variable_names, block) {
+            super()
+            this.name = name;
+            this.variable_names = variable_names;
+            this.block = block;
+            this.is_copy = false;
+            this.upper_ctx = {}
+        }
+
+        evaluate (context) {
+            if (this.is_copy) return this;
+
+            let copy = new DefFunction(this.name, this.variable_names, this.block)
+            copy.is_copy = true;
+            copy.upper_ctx = context
+
+            context[this.name] = copy;
+            return copy;
+        }
+
+        __call__ (args) {
+            let ctx = { '__up__': this.upper_ctx }
+
+            for (let idx = 0; idx < Math.max(args.length, this.variable_names.length); idx ++ ) {
+                ctx[this.variable_names[idx]] = args[idx]
+            }
+
+            for (let expr of this.block) {
+                let data = expr.evaluate( ctx )
+
+                if (expr instanceof ReturnNode) return data;
+            }
+
+            return null;
+        }
+    }
+
+    class ReturnNode extends PythonNode {
+        constructor (right_expr) {
+            super()
+            this.right_expr = right_expr
+        }
+
+        evaluate (context) {
+            return this.right_expr instanceof PythonNode ? this.right_expr.evaluate(context) : this.right_expr
         }
     }
 
@@ -349,6 +403,8 @@ PYTHON = (function () {
         "IF": "IF",
         "WHILE": "WHILE",
         "LAMBDA": "LAMBDA",
+        "DEF": "DEF",
+        "RETURN": "RETURN",
     }
 
     /**
@@ -533,6 +589,8 @@ PYTHON = (function () {
             if (name == "or") return TOKENS.OR
             if (name == "and") return TOKENS.AND
             if (name == "lambda") return TOKENS.LAMBDA
+            if (name == "def") return TOKENS.DEF
+            if (name == "return") return TOKENS.RETURN
 
             return TOKENS.NAME
         }
@@ -675,6 +733,39 @@ PYTHON = (function () {
                 this.move(1);
                 let expr = this.parse()
                 return new WhileNode( expr, this.parse_block('while', cur_tab_count) )
+            }
+            if (this.token.name == TOKENS.DEF) {
+                this.move(1);
+                if (this.token.name != TOKENS.NAME) throw 'Expected name after def keywork'
+
+                let name = this.token.value;
+                this.move(1)
+
+                if (this.token.name != TOKENS.LEFT_PARENTHESIES) throw 'Expected left parenthesies after name in definition of function'
+                this.move(1)
+
+                let variable_names = []
+                while (this.advanced && this.token.name == TOKENS.NAME) {
+                    variable_names.push(this.token.value);
+                    this.move(1)
+
+                    if (this.token.name != TOKENS.COMMA && this.token.name != TOKENS.RIGHT_PARENTHESIES)
+                        throw 'Expected comma or right parenthesies after name in variable names of function definition'
+                    
+                    if (this.token.name == TOKENS.COMMA) this.move(1);
+                    if (this.token.name == TOKENS.RIGHT_PARENTHESIES) {
+                        this.move(1);
+                        break;
+                    }
+                }
+
+                let block = this.parse_block('def', cur_tab_count)
+
+                return new DefFunction(name, variable_names, block);
+            }
+            if (this.token.name == TOKENS.RETURN) {
+                this.move(1);
+                return new ReturnNode(this.parse_expression(0))
             }
 
             if (this.token.name == TOKENS.NAME) {
@@ -858,7 +949,13 @@ PYTHON = (function () {
   x = 3
   print(function(2))
   print(len(arr))
-  print(len(arr[0]))`)
+  print(len(arr[0]))
+  
+  def f(y):
+\t    print("\\"" + y + "\\"")
+\t    return x + y
+  print(f(1))
+  print(f(2))`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

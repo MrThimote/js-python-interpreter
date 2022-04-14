@@ -179,10 +179,13 @@ PYTHON = (function () {
         }
 
         evaluate( context ) {
+            if (this.expr.name == "randint") {
+                console.log()
+            }
             let func = this.expr instanceof PythonNode ? this.expr.evaluate( context ) : this.expr
 
             let args = this.arg_expressions.map((expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr)
-
+            
             if (func.__call__) return func.__call__(args)
             return func(args)
         }
@@ -362,6 +365,17 @@ PYTHON = (function () {
         }
     }
 
+    class ImportNode extends PythonNode {
+        constructor (name) {
+            super();
+            this.name = name;
+        }
+
+        evaluate (context) {
+            context[this.name] = modules[this.name]
+        }
+    }
+
     /**
      * PythonOperation
      * @param operator operator type on which to apply the operation
@@ -492,6 +506,7 @@ PYTHON = (function () {
         "EOF": "EOF",
         "TAB": "TAB",
         "TWO_DOTS": "TWO_DOTS",
+        "DOT": "DOT",
         "COMMA": "COMMA",
 
         "IF": "IF",
@@ -500,6 +515,7 @@ PYTHON = (function () {
         "DEF": "DEF",
         "RETURN": "RETURN",
         "FOR": "FOR",
+        "IMPORT": "IMPORT",
     }
 
     /**
@@ -526,6 +542,7 @@ PYTHON = (function () {
 
         [":", TOKENS.TWO_DOTS],
         [",", TOKENS.COMMA],
+        [".", TOKENS.DOT],
 
         ["+", TOKENS.PLUS],
         ["-", TOKENS.MINUS],
@@ -691,6 +708,7 @@ PYTHON = (function () {
             if (name == "return") return TOKENS.RETURN
             if (name == "for") return TOKENS.FOR
             if (name == "in") return TOKENS.IN
+            if (name == "import") return TOKENS.IMPORT
 
             return TOKENS.NAME
         }
@@ -885,6 +903,13 @@ PYTHON = (function () {
                 return new ForNode(name, expr, block)
             }
 
+            if (this.token.name == TOKENS.IMPORT) {
+                this.move(1)
+                let name = this.token.value
+                this.move(1)
+                return new ImportNode(name)
+            }
+
             if (this.token.name == TOKENS.NAME) {
                 let idx = this.idx;
                 let expr = this.extended_factor()
@@ -1045,6 +1070,13 @@ PYTHON = (function () {
                     this.move(1)
 
                     left = new GetAtNode(left, idx_expr)
+                } else if (this.token.name == TOKENS.DOT) {
+                    this.move(1)
+                    if (this.token.name != TOKENS.NAME) throw 'Expected name after dot'
+
+                    let name = this.token.value
+                    this.move(1)
+                    left = new GetAtNode(left, name)
                 } else if (this.token.name == TOKENS.LEFT_PARENTHESIES) {
                     this.move(1);
                     let expressions = [];
@@ -1069,6 +1101,16 @@ PYTHON = (function () {
     }
 
     const GLOBAL_CONTEXT = {}
+    function create_context () {
+        return {
+            '__up__': GLOBAL_CONTEXT
+        }
+    }
+
+    const modules = {}
+    function load_module (name, context) {
+        modules[name] = context
+    }
 
     function register_global (dict) {
         let keys = Object.keys ( dict );
@@ -1082,6 +1124,8 @@ PYTHON = (function () {
     function evaluate ( string ) {
         let lexer = new PythonLexer(
             `
+  import random
+
   x = 1+1*2**3
   y = 1+1*x**4
   while y <= 6568 and y >= 6560:
@@ -1138,8 +1182,13 @@ PYTHON = (function () {
   dict["b"] = "c"
   print(dict[dict["a"]])
   
-  arr = [i for i in range(1, 10)]
-  print(arr)`)
+  arr = [i for i in range(10)]
+  print(arr)
+  
+  for i in map (lambda x: x * x, range(10)):
+\t    print(i)
+  print(list(map (lambda x: x * x, range(10))))
+  print(list(map (lambda x: random.randint(0, x), range(10))))`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)
@@ -1157,8 +1206,12 @@ PYTHON = (function () {
         AbstractGetNode,
         PythonNode,
 
+        ArrayNode,
+        DictNode,
+
         register_global,
-        evaluate
+        evaluate,
+        load_module
     }
 })()
 

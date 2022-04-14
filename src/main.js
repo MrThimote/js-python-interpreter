@@ -54,7 +54,7 @@ PYTHON = (function () {
         }
 
         evaluate (context) {
-            while (!(context[this.name]) && context.__up__) {
+            while ((typeof context[this.name] == "undefined") && context.__up__) {
                 context = context.__up__
             }
 
@@ -112,7 +112,9 @@ PYTHON = (function () {
             if (!this.expr.evaluate(context)) return false;
 
             for (let node of this.nodes) {
-                node.evaluate(context)
+                if (node instanceof ReturnNode) return node;
+                let value = node.evaluate(context);
+                if (value instanceof ReturnNode) return value;
             }
         }
     }
@@ -132,7 +134,9 @@ PYTHON = (function () {
         evaluate (context) {
             while (this.expr.evaluate(context)) {
                 for (let node of this.nodes) {
-                    node.evaluate(context)
+                    if (node instanceof ReturnNode) return node;
+                    let value = node.evaluate(context);
+                    if (value instanceof ReturnNode) return value;
                 }
             }
         }
@@ -154,7 +158,9 @@ PYTHON = (function () {
                 context[this.name] = value;
 
                 for (let node of this.nodes) {
-                    node.evaluate(context);
+                    if (node instanceof ReturnNode) return node;
+                    let value = node.evaluate(context);
+                    if (value instanceof ReturnNode) return value;
                 }
             }
         }
@@ -242,6 +248,7 @@ PYTHON = (function () {
             for (let expr of this.block) {
                 let data = expr.evaluate( ctx )
 
+                if (data instanceof ReturnNode) return data.evaluate(ctx)
                 if (expr instanceof ReturnNode) return data;
             }
 
@@ -283,8 +290,6 @@ PYTHON = (function () {
             return "[" + this.expressions.map ( (expr) => {
                 if (typeof expr == "string") return '"' + expr + '"'
                 if (expr.__str__) {
-                    console.log(expr)
-                    console.log(expr.__str__())
                     return expr.__str__();
                 }
 
@@ -783,6 +788,8 @@ PYTHON = (function () {
                         break;
                     }
                 }
+                if (variable_names.length == 0 && this.token.name == TOKENS.RIGHT_PARENTHESIES)
+                    this.move(1);
 
                 let block = this.parse_block('def', cur_tab_count)
 
@@ -999,7 +1006,24 @@ PYTHON = (function () {
   
   a = range(1, 10, 2)
   for i in a:
-\t    print(i)`)
+\t    print(i)
+
+  print("WHILE AREA")
+  def test_ret():
+\t    i = 0
+\t    print(i)
+\t    while i < 4:
+\t\t      print(i)
+\t\t      if i == 5:
+\t\t\t        print("FOUND 5")
+\t\t\t        return i
+\t\t      i = i + 1
+\t    for i in range(1, 10):
+\t\t      print(i)
+\t\t      if i == 5:
+\t\t\t        print("FOUND 5")
+\t\t\t        return i
+  print(test_ret())`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

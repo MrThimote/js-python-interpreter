@@ -271,12 +271,17 @@ PYTHON = (function () {
         constructor (expressions) {
             super();
             this.expressions = expressions
+            this.built = false;
         }
 
         evaluate (context) {
-            return new ArrayNode(
+            if (this.built) return this;
+
+            let arr = new ArrayNode(
                 this.expressions.map( (expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr )
             )
+            arr.built = true;
+            return arr
         }
 
         __getitem__ (idx) {
@@ -297,6 +302,40 @@ PYTHON = (function () {
             } ).join(", ") + "]"
         }
         __len__ () { return this.expressions.length }
+    }
+
+    class DictNode extends PythonNode {
+        constructor (dict) {
+            super();
+            this.dict = dict;
+        }
+
+        evaluate ( context ) { return this; }
+        __getitem__ (idx) {return this.dict[idx];}
+        __setitem__ (idx, value) {this.dict[idx] = value; return value;}
+    }
+
+    class BuildDictNode extends PythonNode {
+        constructor (key_expr, val_expr) {
+            super();
+            this.key_expr = key_expr;
+            this.val_expr = val_expr;
+        }
+
+        evaluate (context) {
+            let dictionnary = {}
+            for (let idx = 0; idx < this.key_expr.length; idx ++) {
+                let key = this.key_expr[idx]
+                let val = this.val_expr[idx]
+
+                let rkey = key instanceof PythonNode ? key.evaluate(context) : key
+                let rval = val instanceof PythonNode ? val.evaluate(context) : val
+
+                dictionnary[rkey] = rval
+            }
+
+            return new DictNode(dictionnary)
+        }
     }
 
     /**
@@ -386,6 +425,12 @@ PYTHON = (function () {
         "LEFT_SQUARED_BRACKET": "LEFT_SQUARED_BRACKET",
         "RIGHT_SQUARED_BRACKET": "RIGHT_SQUARED_BRACKET",
 
+        "LEFT_PARENTHESIES": "LEFT_PARENTHESIES",
+        "RIGHT_PARENTHESIES": "RIGHT_PARENTHESIES",
+
+        "LEFT_CURLY_BRACKET": "LEFT_CURLY_BRACKET",
+        "RIGHT_CURLY_BRACKET": "RIGHT_CURLY_BRACKET",
+
         // operators
         "PLUS": "PLUS",
         "MINUS": "MINUS",
@@ -424,8 +469,6 @@ PYTHON = (function () {
         "TAB": "TAB",
         "TWO_DOTS": "TWO_DOTS",
         "COMMA": "COMMA",
-        "LEFT_PARENTHESIES": "LEFT_PARENTHESIES",
-        "RIGHT_PARENTHESIES": "RIGHT_PARENTHESIES",
 
         "IF": "IF",
         "WHILE": "WHILE",
@@ -480,6 +523,9 @@ PYTHON = (function () {
 
         ["(", TOKENS.LEFT_PARENTHESIES],
         [")", TOKENS.RIGHT_PARENTHESIES],
+
+        ["{", TOKENS.LEFT_CURLY_BRACKET],
+        ["}", TOKENS.RIGHT_CURLY_BRACKET],
     ]
     
     class PythonLexer {
@@ -902,6 +948,29 @@ PYTHON = (function () {
 
                 return new ArrayNode(expressions)
             }
+            if (this.token.name == TOKENS.LEFT_CURLY_BRACKET) {
+                let key_expressions = [];
+                let val_expressions = [];
+                this.move(1);
+
+                while (this.advanced && this.token.name != TOKENS.RIGHT_CURLY_BRACKET) {
+                    let key_expr = this.parse_expression(0)
+                    if (this.token.name != TOKENS.TWO_DOTS) throw 'expected two dots in dict build'
+                    this.move(1)
+                    
+                    let val_expr = this.parse_expression(0)
+
+                    key_expressions.push(key_expr)
+                    val_expressions.push(val_expr)
+
+                    if (this.token.name == TOKENS.COMMA) this.move(1)
+                    else if (this.token.name != TOKENS.RIGHT_CURLY_BRACKET) throw 'Expected comma or right curly bracket in dict build'
+                }
+
+                this.move(1)
+
+                return new BuildDictNode(key_expressions, val_expressions)
+            }
 
             if (this.token.name == TOKENS.LAMBDA) {
                 this.move(1)
@@ -1023,7 +1092,12 @@ PYTHON = (function () {
 \t\t      if i == 5:
 \t\t\t        print("FOUND 5")
 \t\t\t        return i
-  print(test_ret())`)
+  print(test_ret())
+  
+  dict = { "a": "b" }
+  print(dict["a"])
+  dict["b"] = "c"
+  print(dict[dict["a"]])`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

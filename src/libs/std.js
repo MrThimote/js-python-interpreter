@@ -1,6 +1,10 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    /**
+     * Std module
+     */
+
     class StrFunction extends PYTHON.AbstractFunctionNode {
         __call__(args) {
             if (args[0] instanceof String) return "\"" + args[0] + "\""
@@ -90,7 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
         'range': new RangeFunction(),
         'map': new MapFunction(),
         'list': new ListFunction(),
+        'True': true,
+        'False': false,
     } )
+
+    /**
+     * RANDOM Module
+     */
 
     class RandintFunction extends PYTHON.AbstractFunctionNode {
         __call__ (args) {
@@ -106,6 +116,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     PYTHON.load_module( 'random', {
         "randint": new RandintFunction(),
+    } )
+
+    /**
+     * Math Module
+     */
+
+    PYTHON.load_module( 'math', {
+        'pi': Math.PI,
+        'e' : Math.E
     } )
 
     PYTHON.evaluate()

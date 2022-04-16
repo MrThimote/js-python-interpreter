@@ -106,10 +106,12 @@ PYTHON = (function () {
             super();
             this.expr = condition_expr
             this.nodes = nodes;
+            this.else = undefined;
         }
 
         evaluate (context) {
-            if (!this.expr.evaluate(context)) return false;
+            let expr = this.expr instanceof PythonNode ? this.expr.evaluate(context) : this.expr
+            if (!expr) return this.else ? this.else.evaluate(context) : undefined;
 
             for (let node of this.nodes) {
                 if (node instanceof ReturnNode) return node;
@@ -179,9 +181,6 @@ PYTHON = (function () {
         }
 
         evaluate( context ) {
-            if (this.expr.name == "randint") {
-                console.log()
-            }
             let func = this.expr instanceof PythonNode ? this.expr.evaluate( context ) : this.expr
 
             let args = this.arg_expressions.map((expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr)
@@ -376,6 +375,16 @@ PYTHON = (function () {
         }
     }
 
+    class NativeFunctionNode extends AbstractFunctionNode {
+        constructor (func) {
+            this.func = func
+        }
+
+        __call__(args) {
+            return this.func(...args)
+        }
+    }
+
     /**
      * PythonOperation
      * @param operator operator type on which to apply the operation
@@ -510,6 +519,8 @@ PYTHON = (function () {
         "COMMA": "COMMA",
 
         "IF": "IF",
+        "ELIF": "ELIF",
+        "ELSE": "ELSE",
         "WHILE": "WHILE",
         "LAMBDA": "LAMBDA",
         "DEF": "DEF",
@@ -700,6 +711,8 @@ PYTHON = (function () {
 
         findNameToken (name) {
             if (name == "if") return TOKENS.IF
+            if (name == "elif") return TOKENS.ELIF
+            if (name == "else") return TOKENS.ELSE
             if (name == "while") return TOKENS.WHILE
             if (name == "or") return TOKENS.OR
             if (name == "and") return TOKENS.AND
@@ -844,8 +857,31 @@ PYTHON = (function () {
         parse(cur_tab_count) {
             if (this.token.name == TOKENS.IF) {
                 this.move(1);
-                let expr = this.parse()
-                return new IfNode( expr, this.parse_block('if', cur_tab_count) )
+                let expr = this.parse(cur_tab_count)
+                let if_object = new IfNode( expr, this.parse_block('if', cur_tab_count) )
+                let last_if = if_object;
+                
+                while (this.token.name == TOKENS.EOF 
+                    && this.next(1)?.name == TOKENS.TAB 
+                    && this.next(1)?.value == cur_tab_count
+                    && this.next(2)?.name == TOKENS.ELIF) {
+                    this.move(3)
+                    let new_expr = this.parse(cur_tab_count)
+                    let new_if = new IfNode(new_expr, this.parse_block('elif', cur_tab_count))
+
+                    last_if.else = new_if
+                    last_if = new_if
+                }
+
+                if (this.token.name == TOKENS.EOF 
+                    && this.next(1)?.name == TOKENS.TAB 
+                    && this.next(1)?.value == cur_tab_count
+                    && this.next(2)?.name == TOKENS.ELSE) {
+                    this.move(3)
+                    last_if.else = new IfNode(true, this.parse_block('else', cur_tab_count))
+                }
+
+                return if_object;
             }
             if (this.token.name == TOKENS.WHILE) {
                 this.move(1);
@@ -1188,7 +1224,19 @@ PYTHON = (function () {
   for i in map (lambda x: x * x, range(10)):
 \t    print(i)
   print(list(map (lambda x: x * x, range(10))))
-  print(list(map (lambda x: random.randint(0, x), range(10))))`)
+  print(list(map (lambda x: random.randint(0, x), range(10))))
+  
+  for x in range(10):
+\t    if x == 1:
+\t\t      print('x is 1')
+\t    elif x == 2:
+\t\t      print('x is not 1 but 2 !')
+\t    else:
+\t\t      print('x is not 1')
+  if True:
+\t    print('yay !')
+  if False:
+\t    print('not yay')`)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)

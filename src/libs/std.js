@@ -126,6 +126,4 @@
         'e' : Math.E
     } )
 
-    PYTHON.evaluate()
-
 })();

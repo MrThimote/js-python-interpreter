@@ -8,8 +8,9 @@
 
     <script>
         let worker = new Worker('src/main.js')
+        let canvas = [];
+
         worker.onmessage = (ev => {
-            console.log(ev.data)
             if (ev.data == 'python.ready') {
                 fetch ('/tests/game/test.py').then (body => body.text().then((text) => {
                     worker.postMessage({
@@ -19,6 +20,22 @@
                     })
                 }))
             } else if (ev.data.type == "print") console.log(ev.data.str)
+            else if (ev.data.type == "canvas") {
+                let current_cnv = canvas[ev.data.id]
+                let variable = ev.data.dt == "ctx" ? current_cnv.getContext('2d') : current_cnv;
+
+                for (let idx = 0; idx < ev.data.call_stack; idx ++) {
+                    variable = variable[ev.data.call_stack[idx]]
+                }
+
+                variable(...ev.data.args)
+            } else if (ev.data.type == "create_canvas") {
+                let cnv = document.createElement("canvas")
+                cnv.setAttribute('width', ev.data.width)
+                cnv.setAttribute('height', ev.data.height)
+                document.body.appendChild(cnv)
+                canvas.push(cnv)
+            }
         }) 
     </script>
 </head>

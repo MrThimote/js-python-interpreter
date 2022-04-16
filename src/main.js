@@ -1021,6 +1021,27 @@ PYTHON = (function () {
                 return new PythonOperation(TOKENS.SET, value);
             }
 
+            if (this.token.name == TOKENS.LEFT_PARENTHESIES) {
+                this.move(1);
+
+                let first_expr = this.parse_expression(0);
+
+                if (this.token?.name == TOKENS.RIGHT_PARENTHESIES) {
+                    this.move(1);
+                    return first_expr;
+                }
+
+                let expressions = [first_expr]
+                while (this.token?.name == TOKENS.COMMA) {
+                    this.move(1);
+                    expressions.push(this.parse_expression(0))
+                }
+
+                if (this.token?.name == TOKENS.RIGHT_PARENTHESIES) this.move(1)
+                
+                return new ArrayNode(expressions);
+            }
+
             if (this.token.name == TOKENS.LEFT_SQUARED_BRACKET) {
                 this.move(1)
                 let expressions = [];
@@ -1167,6 +1188,7 @@ PYTHON = (function () {
     
         let parser = new PythonParser(tokens)
         let nodes = parser.build();
+        console.log(nodes)
         let context = { '__up__': GLOBAL_CONTEXT }
         for (let node of nodes) {
             console.log(context)
@@ -1187,13 +1209,15 @@ PYTHON = (function () {
 
         register_global,
         evaluate,
-        load_module
+        load_module,
+        modules
     }
 })()
 
 
 const LIBRARIES = [
-    '/src/libs/std.js'
+    '/src/libs/std.js',
+    '/src/libs/pygame.js'
 ];
 const library_code = {  }
 
@@ -1203,13 +1227,16 @@ new Promise ((resolve, reject) => {
             library_code[src] = text
             if (Object.keys(library_code).length == LIBRARIES.length) {
                 LIBRARIES.forEach((src)=> {
+                    console.log(library_code[src])
                     eval(library_code[src])
+                    console.log('MODULE')
+                    console.log(PYTHON.modules)
                     resolve();
                 })
             }
         }))
     })
-}).then(postMessage('python.ready'));
+}).then(setTimeout(postMessage('python.ready'), 1000));
 
 onmessage = (event)=>{
     let data = event.data

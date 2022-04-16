@@ -184,9 +184,14 @@ PYTHON = (function () {
 
         evaluate( context ) {
             let func = this.expr instanceof PythonNode ? this.expr.evaluate( context ) : this.expr
+            let parent = undefined
+            if (this.expr instanceof GetAtNode && typeof this.expr.idx_expr == "string") {
+                parent = this.expr.left instanceof PythonNode ? this.expr.left.evaluate(context) : this.expr.left;
+            }
 
             let args = this.arg_expressions.map((expr) => expr instanceof PythonNode ? expr.evaluate(context) : expr)
-            
+            if (parent != undefined) args.splice(0, 0, parent)
+
             if (func.__call__) return func.__call__(args)
             return func(args)
         }
@@ -1231,8 +1236,8 @@ new Promise ((resolve, reject) => {
                     eval(library_code[src])
                     console.log('MODULE')
                     console.log(PYTHON.modules)
-                    resolve();
                 })
+                resolve();
             }
         }))
     })

@@ -20,21 +20,19 @@
                     })
                 }))
             } else if (ev.data.type == "print") console.log(ev.data.str)
-            else if (ev.data.type == "canvas") {
-                let current_cnv = canvas[ev.data.id]
-                let variable = ev.data.dt == "ctx" ? current_cnv.getContext('2d') : current_cnv;
-
-                for (let idx = 0; idx < ev.data.call_stack; idx ++) {
-                    variable = variable[ev.data.call_stack[idx]]
-                }
-
-                variable(...ev.data.args)
-            } else if (ev.data.type == "create_canvas") {
+            else if (ev.data.type == "create_canvas") {
                 let cnv = document.createElement("canvas")
                 cnv.setAttribute('width', ev.data.width)
                 cnv.setAttribute('height', ev.data.height)
                 document.body.appendChild(cnv)
                 canvas.push(cnv)
+            } else if (ev.data.type == "drawImg") {
+                console.log(ev.data)
+                let cnv = canvas[ev.data.id]
+
+                let image = new Image(ev.data.width, ev.data.height)
+                image.src = ev.data.img
+                image.onload = () => cnv.getContext('2d').drawImage(image, ev.data.x, ev.data.y, ev.data.width, ev.data.height)
             }
         }) 
     </script>

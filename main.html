@@ -6,8 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 
-    <script src="src/main.js"></script>
-    <script src="src/libs/std.js"></script>
+    <script>
+        let worker = new Worker('src/main.js')
+        worker.onmessage = (ev => {
+            console.log(ev.data)
+            if (ev.data == 'python.ready') {
+                fetch ('/tests/game/test.py').then (body => body.text().then((text) => {
+                    worker.postMessage({
+                        'module': 'test',
+                        'src': text,
+                        '__name__': '__main__',
+                    })
+                }))
+            } else if (ev.data.type == "print") console.log(ev.data.str)
+        }) 
+    </script>
 </head>
 <body>
     

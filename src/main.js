@@ -1,4 +1,6 @@
 
+console.log = (str)=>postMessage({ 'type': 'print', 'str': str })
+
 PYTHON = (function () {
 
     /**
@@ -636,9 +638,10 @@ PYTHON = (function () {
                     tokens.push(new Token(TOKENS.EOF, undefined))
 
                     let tab_count = 0;
-                    while (this.next(1) == "\t") {
+                    while (this.next(1) == "\t"
+                    || (this.next(1) == ' ' && this.next(2) == ' ' && this.next(3) == ' ' && this.next(4) == ' ')) {
                         tab_count += 1;
-                        this.move(1);
+                        this.move(this.next(1) == "\t" ? 1 : 4);
                     }
 
                     tokens.push(new Token(TOKENS.TAB, tab_count))
@@ -1158,94 +1161,19 @@ PYTHON = (function () {
     }
     
     function evaluate ( string ) {
-        let lexer = new PythonLexer(
-            `
-  import random
-
-  x = 1+1*2**3
-  y = 1+1*x**4
-  while y <= 6568 and y >= 6560:
-\t    y = y + 1
-  y = y + 1
-  if y == 6570 or y == 6571:
-\t    y = y + 2
-
-  string = "this is a string"
-  string = string + ". and you can add another one"
-  
-  arr = [ "an array", 1, "that also has strings, arrays and insane things", [ "subarray" ], x, "and variables" ]
-  
-  e = arr[3][0]
-  arr[3][0] = str(e)
-  print(arr)
-  
-  function = lambda y : x * x + y
-  print(function(1))
-  x = 3
-  print(function(2))
-  print(len(arr))
-  print(len(arr[0]))
-  
-  def f(y):
-\t    print("\\"" + y + "\\"")
-\t    return x + y
-  print(f(1))
-  print(f(2))
-  
-  a = range(1, 10, 2)
-  for i in a:
-\t    print(i)
-
-  print("WHILE AREA")
-  def test_ret():
-\t    i = 0
-\t    print(i)
-\t    while i < 4:
-\t\t      print(i)
-\t\t      if i == 5:
-\t\t\t        print("FOUND 5")
-\t\t\t        return i
-\t\t      i = i + 1
-\t    for i in range(1, 10):
-\t\t      print(i)
-\t\t      if i == 5:
-\t\t\t        print("FOUND 5")
-\t\t\t        return i
-  print(test_ret())
-  
-  dict = { "a": "b" }
-  print(dict["a"])
-  dict["b"] = "c"
-  print(dict[dict["a"]])
-  
-  arr = [i for i in range(10)]
-  print(arr)
-  
-  for i in map (lambda x: x * x, range(10)):
-\t    print(i)
-  print(list(map (lambda x: x * x, range(10))))
-  print(list(map (lambda x: random.randint(0, x), range(10))))
-  
-  for x in range(10):
-\t    if x == 1:
-\t\t      print('x is 1')
-\t    elif x == 2:
-\t\t      print('x is not 1 but 2 !')
-\t    else:
-\t\t      print('x is not 1')
-  if True:
-\t    print('yay !')
-  if False:
-\t    print('not yay')`)
+        console.log(string)
+        let lexer = new PythonLexer(string)
         let tokens = lexer.build()
     
         let parser = new PythonParser(tokens)
         let nodes = parser.build();
-        console.log(GLOBAL_CONTEXT)
+        let context = { '__up__': GLOBAL_CONTEXT }
         for (let node of nodes) {
-            node.evaluate(GLOBAL_CONTEXT)
+            console.log(context)
+            console.log(node)
+            node.evaluate(context)
         }
-        console.log(GLOBAL_CONTEXT)
+        return context;
     }
     
 
@@ -1264,3 +1192,30 @@ PYTHON = (function () {
 })()
 
 
+const LIBRARIES = [
+    '/src/libs/std.js'
+];
+const library_code = {  }
+
+new Promise ((resolve, reject) => {
+    LIBRARIES.forEach( src => {
+        fetch(src).then ((body) => body.text().then((text)=>{
+            library_code[src] = text
+            if (Object.keys(library_code).length == LIBRARIES.length) {
+                LIBRARIES.forEach((src)=> {
+                    eval(library_code[src])
+                    resolve();
+                })
+            }
+        }))
+    })
+}).then(postMessage('python.ready'));
+
+onmessage = (event)=>{
+    let data = event.data
+
+    if (event.data.__name__ == "__main__") {
+        let ctx = PYTHON.evaluate(data.src)
+        PYTHON.load_module(data.name, ctx)
+    }
+}

@@ -1,6 +1,5 @@
 
-document.addEventListener('DOMContentLoaded', () => {
-
+(function() {
     /**
      * Std module
      */
@@ -129,4 +128,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     PYTHON.evaluate()
 
-});
+})();

@@ -6,36 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 
-    <script>
-        let worker = new Worker('src/main.js')
-        let canvas = [];
-
-        worker.onmessage = (ev => {
-            if (ev.data == 'python.ready') {
-                fetch ('/tests/game/test.py').then (body => body.text().then((text) => {
-                    worker.postMessage({
-                        'module': 'test',
-                        'src': text,
-                        '__name__': '__main__',
-                    })
-                }))
-            } else if (ev.data.type == "print") console.log(ev.data.str)
-            else if (ev.data.type == "create_canvas") {
-                let cnv = document.createElement("canvas")
-                cnv.setAttribute('width', ev.data.width)
-                cnv.setAttribute('height', ev.data.height)
-                document.body.appendChild(cnv)
-                canvas.push(cnv)
-            } else if (ev.data.type == "drawImg") {
-                console.log(ev.data)
-                let cnv = canvas[ev.data.id]
-
-                let image = new Image(ev.data.width, ev.data.height)
-                image.src = ev.data.img
-                image.onload = () => cnv.getContext('2d').drawImage(image, ev.data.x, ev.data.y, ev.data.width, ev.data.height)
-            }
-        }) 
-    </script>
+    <script src="src/client.js"></script>
 </head>
 <body>
     

@@ -56,6 +56,16 @@
 
                 postMessage( ctx )
             }
+
+            if (object instanceof PygameText) {
+                ctx.type = "drawText"
+                ctx.id = th.id;
+                ctx.font = { "path": object.path, "size": object.size }
+                ctx.color = { "front": object.color, "bg": object.background }
+                ctx.text = object.text
+
+                postMessage(ctx)
+            }
         }
     }
 
@@ -124,10 +134,88 @@
             let w = args[2].__getitem__(0)
             let h = args[2].__getitem__(1)
 
+            if (obj instanceof PygameImage) {
+                return new PygameImage(obj.img, obj.x, obj.y, w, h)
+            }
+
             obj.width = w;
             obj.height = h;
 
             return obj;
+        }
+    }
+
+    class PygameFont extends PYTHON.PythonNode {
+        constructor (path, size) {
+            super();
+            this.path = path;
+            this.size = size;
+        }
+        __str__ () {
+            return `<PygameFont path=${this.path} size=${this.size}>`
+        }
+        
+        render (args) {
+            let text = args[1]
+            let antialias = args[2];
+            let color = args[3]
+            let background = args.length < 4 ? "#00000000" : args[4]
+
+            return new PygameText(args[0], text, color, background)
+        }
+    }
+
+    class FontConstructor extends PYTHON.PythonNode {
+        __call__(args) {
+            return new PygameFont(args[1], args[2])
+        }
+    }
+
+    class PygameText extends PYTHON.PythonNode {
+        constructor (font, text, color, background) {
+            super();
+            this.path = font.path;
+            this.size = font.size;
+            this.text = text;
+            this.color = color;
+            this.background = background;
+
+            this.x = 0;
+            this.y = 0;
+
+            this.width = "WNaN";
+            this.height = "HNaN";
+        }
+
+        __str__ () {
+            return `<PygameText x=${this.x} y=${this.y} text=${this.text} color=${this.color} background=${this.background} font=[size=${this.size} path=${this.path}] >`
+        }
+
+        get_rect (args) {
+            return new PygameDataRectangle(args[0])
+        }
+    }
+
+    class PygameDataRectangle extends PYTHON.PythonNode {
+        constructor ( target ) {
+            super();
+            this.target = target;
+        }
+
+        __setitem__ (idx, value) {
+            if (idx == "x") this.target.x = value;
+            if (idx == "y") this.target.y = value;
+
+            if (idx == "width") this.target.width = value;
+            if (idx == "height") this.target.height = value;
+
+            if (idx == "topleft") {
+                let x = value.__getitem__ ? value.__getitem__(0) : value.x
+                let y = value.__getitem__ ? value.__getitem__(1) : value.y
+
+                this.target.x = x;
+                this.target.y = y;
+            }
         }
     }
 
@@ -144,6 +232,10 @@
 
         'transform': {
             'scale': new ScaleObjectFunction (),
+        },
+
+        'font': {
+            'Font': new FontConstructor(),
         }
     })
 

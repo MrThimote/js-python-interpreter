@@ -1224,24 +1224,12 @@ const LIBRARIES = [
     '/src/libs/std.js',
     '/src/libs/pygame.js'
 ];
-const library_code = {  }
 
-new Promise ((resolve, reject) => {
-    LIBRARIES.forEach( src => {
-        fetch(src).then ((body) => body.text().then((text)=>{
-            library_code[src] = text
-            if (Object.keys(library_code).length == LIBRARIES.length) {
-                LIBRARIES.forEach((src)=> {
-                    console.log(library_code[src])
-                    eval(library_code[src])
-                    console.log('MODULE')
-                    console.log(PYTHON.modules)
-                })
-                resolve();
-            }
-        }))
-    })
-}).then(setTimeout(postMessage('python.ready'), 1000));
+LIBRARIES.forEach((src) => {
+    importScripts(src)
+})
+
+postMessage('python.ready')
 
 onmessage = (event)=>{
     let data = event.data
